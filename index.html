@@ -1,0 +1,884 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>Deadlock Tracker</title>
+  <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Exo+2:ital,wght@0,300;0,400;0,600;1,300&display=swap" rel="stylesheet"/>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+  <style>
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+
+    :root{
+      --bg:#07090d;
+      --surface:#0d1117;
+      --surface2:#111822;
+      --border:#1c2733;
+      --accent:#e8a020;
+      --accent2:#3ecfcf;
+      --red:#e05060;
+      --green:#40d080;
+      --text:#b8ccd8;
+      --muted:#3a5060;
+      --white:#eef4f8;
+    }
+
+    body{background:var(--bg);color:var(--text);font-family:'Exo 2',sans-serif;min-height:100vh;overflow-x:hidden}
+
+    body::before{
+      content:'';position:fixed;inset:0;
+      background-image:linear-gradient(rgba(62,207,207,0.02) 1px,transparent 1px),linear-gradient(90deg,rgba(62,207,207,0.02) 1px,transparent 1px);
+      background-size:48px 48px;pointer-events:none;z-index:0
+    }
+
+    /* ── HEADER ── */
+    header{
+      position:relative;z-index:100;
+      background:linear-gradient(180deg,rgba(232,160,32,0.07) 0%,transparent 100%);
+      border-bottom:1px solid var(--border);
+      padding:0 2rem;height:56px;
+      display:flex;align-items:center;gap:1.5rem
+    }
+
+    .logo{
+      font-family:'Rajdhani',sans-serif;font-weight:700;font-size:1.5rem;
+      letter-spacing:0.12em;text-transform:uppercase;color:var(--white);white-space:nowrap
+    }
+    .logo span{color:var(--accent)}
+
+    nav{display:flex;gap:2px;margin-left:2rem}
+
+    .nav-btn{
+      background:none;border:none;color:var(--muted);
+      font-family:'Exo 2',sans-serif;font-size:0.75rem;
+      letter-spacing:0.15em;text-transform:uppercase;
+      padding:0.4rem 1rem;cursor:pointer;transition:all 0.2s;
+      border-bottom:2px solid transparent;display:flex;align-items:center;gap:0.4rem
+    }
+    .nav-btn:hover{color:var(--text)}
+    .nav-btn.active{color:var(--accent2);border-bottom-color:var(--accent2)}
+    .nav-btn svg{width:14px;height:14px;fill:currentColor}
+
+    .header-right{margin-left:auto;display:flex;align-items:center;gap:1rem}
+
+    .user-chip{
+      display:flex;align-items:center;gap:0.6rem;
+      background:var(--surface2);border:1px solid var(--border);
+      padding:0.3rem 0.8rem 0.3rem 0.3rem;
+      clip-path:polygon(8px 0%,100% 0%,calc(100% - 8px) 100%,0% 100%)
+    }
+
+    .user-avatar{width:28px;height:28px;object-fit:cover;border:1px solid var(--accent)}
+    .user-avatar-ph{
+      width:28px;height:28px;background:var(--surface);border:1px solid var(--accent);
+      display:flex;align-items:center;justify-content:center;
+      font-family:'Rajdhani',sans-serif;font-weight:700;font-size:0.85rem;color:var(--accent)
+    }
+    .user-name{font-size:0.8rem;color:var(--white);font-weight:600}
+
+    .btn{
+      background:none;border:1px solid var(--border);color:var(--muted);
+      font-family:'Exo 2',sans-serif;font-size:0.72rem;
+      letter-spacing:0.1em;text-transform:uppercase;
+      padding:0.4rem 1rem;cursor:pointer;transition:all 0.2s;
+      clip-path:polygon(6px 0%,100% 0%,calc(100% - 6px) 100%,0% 100%);
+      display:inline-flex;align-items:center;gap:0.4rem
+    }
+    .btn svg{width:13px;height:13px;fill:currentColor}
+    .btn:hover{border-color:var(--accent2);color:var(--accent2)}
+    .btn-accent{background:var(--accent);border-color:var(--accent);color:#000;font-weight:600}
+    .btn-accent:hover{background:#f0b030;border-color:#f0b030;color:#000}
+
+    /* ── PAGES ── */
+    main{position:relative;z-index:1}
+    .page{display:none}
+    .page.active{display:block}
+
+    /* ── LOGIN PAGE ── */
+    #page-login{min-height:calc(100vh - 56px);display:none;flex-direction:column;align-items:center;justify-content:center;padding:2rem;text-align:center}
+    #page-login.active{display:flex}
+
+    .login-title{
+      font-family:'Rajdhani',sans-serif;font-size:3.5rem;font-weight:700;
+      letter-spacing:0.1em;text-transform:uppercase;color:var(--white);line-height:1;margin-bottom:0.5rem
+    }
+    .login-title span{color:var(--accent)}
+    .login-sub{font-size:0.85rem;color:var(--muted);letter-spacing:0.15em;text-transform:uppercase;margin-bottom:3rem}
+
+    .steam-btn{
+      display:inline-flex;align-items:center;gap:0.75rem;
+      background:linear-gradient(135deg,#1b2838,#2a475e);
+      border:1px solid #4a90a4;color:#fff;
+      font-family:'Rajdhani',sans-serif;font-weight:700;
+      font-size:1rem;letter-spacing:0.1em;text-transform:uppercase;
+      padding:0.85rem 2rem;cursor:pointer;transition:all 0.3s;
+      clip-path:polygon(10px 0%,100% 0%,calc(100% - 10px) 100%,0% 100%);
+      text-decoration:none
+    }
+    .steam-btn:hover{background:linear-gradient(135deg,#2a475e,#1b2838);border-color:#6ab0c4;transform:translateY(-2px);box-shadow:0 8px 24px rgba(74,144,164,0.3)}
+    .steam-btn svg{width:22px;height:22px;fill:#fff;flex-shrink:0}
+
+    .login-features{display:flex;gap:1.5rem;margin-top:3rem;flex-wrap:wrap;justify-content:center}
+
+    .login-feature{
+      display:flex;flex-direction:column;align-items:center;gap:0.75rem;
+      padding:1.25rem 1.5rem;background:var(--surface);border:1px solid var(--border);width:150px;
+      clip-path:polygon(0 0,calc(100% - 12px) 0,100% 12px,100% 100%,12px 100%,0 calc(100% - 12px))
+    }
+    .login-feature svg{width:28px;height:28px;fill:var(--accent2)}
+    .login-feature-text{font-size:0.72rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);text-align:center}
+
+    /* ── DASHBOARD ── */
+    .dashboard{max-width:1400px;margin:0 auto;padding:1.5rem 2rem}
+
+    .profile-banner{
+      background:var(--surface);border:1px solid var(--border);
+      padding:1.5rem 2rem;margin-bottom:1.5rem;
+      display:flex;align-items:center;gap:1.5rem;
+      clip-path:polygon(0 0,calc(100% - 16px) 0,100% 16px,100% 100%,16px 100%,0 calc(100% - 16px));
+      position:relative;overflow:hidden
+    }
+    .profile-banner::before{
+      content:'';position:absolute;top:0;left:0;right:0;height:2px;
+      background:linear-gradient(90deg,var(--accent),var(--accent2),transparent)
+    }
+
+    .pb-avatar{width:72px;height:72px;border:2px solid var(--accent);object-fit:cover;flex-shrink:0}
+    .pb-avatar-ph{
+      width:72px;height:72px;border:2px solid var(--accent);background:var(--surface2);flex-shrink:0;
+      display:flex;align-items:center;justify-content:center;
+      font-family:'Rajdhani',sans-serif;font-size:2rem;font-weight:700;color:var(--accent)
+    }
+    .pb-info{flex:1}
+    .pb-name{font-family:'Rajdhani',sans-serif;font-size:1.75rem;font-weight:700;letter-spacing:0.05em;color:var(--white)}
+    .pb-meta{font-size:0.72rem;color:var(--muted);letter-spacing:0.1em;margin-top:2px}
+    .pb-rank{text-align:right;font-family:'Rajdhani',sans-serif}
+    .pb-rank-val{font-size:2rem;font-weight:700;color:var(--accent)}
+    .pb-rank-label{font-size:0.65rem;letter-spacing:0.15em;text-transform:uppercase;color:var(--muted)}
+
+    .stats-row{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:1px;background:var(--border);margin-bottom:1.5rem}
+    .stat-card{background:var(--surface);padding:1.1rem 1rem;text-align:center;position:relative;overflow:hidden}
+    .stat-card::after{content:'';position:absolute;bottom:0;left:0;right:0;height:2px;background:var(--border);transition:background 0.3s}
+    .stat-card:hover::after{background:var(--accent2)}
+    .stat-val{font-family:'Rajdhani',sans-serif;font-size:2.2rem;font-weight:700;color:var(--white);line-height:1}
+    .stat-val.g{color:var(--green)}
+    .stat-val.r{color:var(--red)}
+    .stat-val.a{color:var(--accent)}
+    .stat-val.a2{color:var(--accent2)}
+    .stat-lbl{font-size:0.65rem;letter-spacing:0.15em;text-transform:uppercase;color:var(--muted);margin-top:4px}
+
+    .two-col{display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;margin-bottom:1.5rem}
+    @media(max-width:900px){.two-col{grid-template-columns:1fr}}
+
+    .panel{background:var(--surface);border:1px solid var(--border);overflow:hidden}
+    .panel-head{padding:0.75rem 1.25rem;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+    .panel-title{
+      font-family:'Rajdhani',sans-serif;font-size:0.85rem;font-weight:600;
+      letter-spacing:0.2em;text-transform:uppercase;color:var(--muted);
+      display:flex;align-items:center;gap:0.4rem
+    }
+    .panel-title::before{content:'//';color:var(--accent2)}
+
+    .hero-played-row{
+      display:grid;grid-template-columns:32px 32px 1fr 60px 70px;
+      align-items:center;gap:0.75rem;padding:0.7rem 1.25rem;
+      border-bottom:1px solid var(--border);transition:background 0.15s
+    }
+    .hero-played-row:last-child{border-bottom:none}
+    .hero-played-row:hover{background:var(--surface2)}
+    .hp-rank{font-family:'Rajdhani',sans-serif;font-size:1rem;font-weight:700;color:var(--muted);text-align:center}
+    .hp-rank.top{color:var(--accent)}
+    .hp-img{width:32px;height:32px;object-fit:cover;border:1px solid var(--border)}
+    .hp-name{font-size:0.85rem;font-weight:600;color:var(--white);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .hp-games{font-size:0.65rem;color:var(--muted)}
+    .hp-wr{font-family:'Rajdhani',sans-serif;font-size:0.95rem;font-weight:700;text-align:right}
+    .hp-kd{font-size:0.8rem;color:var(--muted);text-align:right}
+
+    .chart-wrap{padding:1.25rem;height:220px;display:flex;align-items:center;justify-content:center}
+
+    .match-list{background:var(--surface);border:1px solid var(--border);margin-bottom:1.5rem}
+    .match-head{
+      display:grid;grid-template-columns:90px 1fr 100px 100px 100px 90px;
+      padding:0.5rem 1.25rem;gap:1rem;
+      font-size:0.62rem;letter-spacing:0.15em;text-transform:uppercase;color:var(--muted);
+      border-bottom:1px solid var(--border);background:var(--bg)
+    }
+    .match-row{
+      display:grid;grid-template-columns:90px 1fr 100px 100px 100px 90px;
+      align-items:center;padding:0.7rem 1.25rem;gap:1rem;
+      border-bottom:1px solid var(--border);transition:background 0.15s
+    }
+    .match-row:last-child{border-bottom:none}
+    .match-row:hover{background:var(--surface2)}
+    .mr-result{font-family:'Rajdhani',sans-serif;font-weight:700;font-size:0.8rem;letter-spacing:0.1em;text-transform:uppercase;display:flex;align-items:center;gap:0.4rem}
+    .mr-result.win{color:var(--green)}
+    .mr-result.loss{color:var(--red)}
+    .mr-result::before{content:'';width:3px;height:20px;background:currentColor;flex-shrink:0}
+    .mr-hero{display:flex;align-items:center;gap:0.6rem}
+    .mr-hero-img{width:28px;height:28px;object-fit:cover;border:1px solid var(--border)}
+    .mr-hero-name{font-size:0.85rem;color:var(--white);font-weight:600}
+    .mr-kda{font-family:'Rajdhani',sans-serif;font-size:1rem;font-weight:600;color:var(--white)}
+    .mr-stat{font-size:0.8rem;color:var(--muted)}
+    .mr-dur{font-size:0.78rem;color:var(--muted);text-align:right}
+
+    .buddy-row{
+      display:flex;align-items:center;gap:0.75rem;padding:0.7rem 1.25rem;
+      border-bottom:1px solid var(--border);transition:background 0.15s
+    }
+    .buddy-row:last-child{border-bottom:none}
+    .buddy-row:hover{background:var(--surface2)}
+    .buddy-avatar{width:36px;height:36px;object-fit:cover;border:1px solid var(--border);flex-shrink:0}
+    .buddy-avatar-ph{
+      width:36px;height:36px;background:var(--surface2);border:1px solid var(--border);flex-shrink:0;
+      display:flex;align-items:center;justify-content:center;
+      font-family:'Rajdhani',sans-serif;font-size:0.9rem;font-weight:700;color:var(--muted)
+    }
+    .buddy-info{flex:1;overflow:hidden}
+    .buddy-name{font-size:0.85rem;color:var(--white);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .buddy-state{font-size:0.65rem;color:var(--muted);margin-top:1px}
+    .buddy-status{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+    .buddy-status.online{background:var(--green);box-shadow:0 0 6px var(--green)}
+    .buddy-status.offline{background:var(--muted)}
+    .buddy-track-btn{
+      background:none;border:1px solid var(--border);color:var(--muted);
+      font-family:'Exo 2',sans-serif;font-size:0.65rem;letter-spacing:0.1em;
+      text-transform:uppercase;padding:0.25rem 0.6rem;cursor:pointer;transition:all 0.2s
+    }
+    .buddy-track-btn:hover{border-color:var(--accent2);color:var(--accent2)}
+
+    .lb-wrap{max-width:1400px;margin:0 auto;padding:1.5rem 2rem}
+    .region-tabs{display:flex;gap:2px;margin-bottom:1rem;flex-wrap:wrap}
+    .region-tab{
+      background:none;border:1px solid var(--border);color:var(--muted);
+      font-family:'Exo 2',sans-serif;font-size:0.72rem;letter-spacing:0.1em;
+      text-transform:uppercase;padding:0.35rem 0.85rem;cursor:pointer;transition:all 0.2s
+    }
+    .region-tab:hover,.region-tab.active{background:rgba(232,160,32,0.08);border-color:var(--accent);color:var(--accent)}
+    .lb-table{background:var(--surface);border:1px solid var(--border)}
+    .lb-head{
+      display:grid;grid-template-columns:52px 1fr 120px 100px 100px;
+      padding:0.5rem 1.25rem;gap:1rem;
+      font-size:0.62rem;letter-spacing:0.15em;text-transform:uppercase;color:var(--muted);
+      background:var(--bg);border-bottom:1px solid var(--border)
+    }
+    .lb-row{
+      display:grid;grid-template-columns:52px 1fr 120px 100px 100px;
+      align-items:center;padding:0.65rem 1.25rem;gap:1rem;
+      border-bottom:1px solid var(--border);transition:background 0.15s
+    }
+    .lb-row:last-child{border-bottom:none}
+    .lb-row:hover{background:var(--surface2)}
+    .lb-rank{font-family:'Rajdhani',sans-serif;font-size:1.1rem;font-weight:700;color:var(--muted);text-align:center}
+    .lb-rank.gold{color:#ffd700}
+    .lb-rank.silver{color:#c0c0c0}
+    .lb-rank.bronze{color:#cd7f32}
+    .lb-name{font-size:0.85rem;color:var(--text);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .lb-score{font-family:'Rajdhani',sans-serif;font-size:1rem;font-weight:700;color:var(--accent2);text-align:right}
+    .lb-wins{font-family:'Rajdhani',sans-serif;font-size:0.95rem;color:var(--green);text-align:right}
+    .lb-total{font-size:0.82rem;color:var(--muted);text-align:right}
+
+    .loading{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:200px;gap:1rem}
+    .loading-bar{width:180px;height:2px;background:var(--border);position:relative;overflow:hidden}
+    .loading-bar::after{
+      content:'';position:absolute;top:0;left:-100%;width:100%;height:100%;
+      background:linear-gradient(90deg,transparent,var(--accent),transparent);
+      animation:sweep 1.2s ease-in-out infinite
+    }
+    @keyframes sweep{0%{left:-100%}100%{left:100%}}
+    .loading-text{font-size:0.72rem;letter-spacing:0.3em;text-transform:uppercase;color:var(--muted)}
+    .error-msg{text-align:center;padding:2rem;color:var(--red);font-size:0.85rem}
+    .empty-msg{text-align:center;padding:2rem;color:var(--muted);font-size:0.82rem;letter-spacing:0.05em}
+
+    @keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+    .fade-in{animation:fadeIn 0.3s ease both}
+
+    .header-search{
+      display:flex;align-items:center;background:var(--surface2);border:1px solid var(--border);overflow:hidden;
+      clip-path:polygon(6px 0%,100% 0%,calc(100% - 6px) 100%,0% 100%)
+    }
+    .header-search input{
+      background:none;border:none;color:var(--white);font-family:'Exo 2',sans-serif;font-size:0.8rem;
+      padding:0.35rem 0.75rem;outline:none;width:180px
+    }
+    .header-search input::placeholder{color:var(--muted)}
+    .header-search button{
+      background:none;border:none;border-left:1px solid var(--border);
+      color:var(--muted);padding:0.35rem 0.6rem;cursor:pointer;transition:color 0.2s;
+      display:flex;align-items:center
+    }
+    .header-search button:hover{color:var(--accent2)}
+    .header-search button svg{width:15px;height:15px;fill:currentColor}
+  </style>
+</head>
+<body>
+
+<!-- SVG ICON DEFS -->
+<svg style="display:none" xmlns="http://www.w3.org/2000/svg">
+  <symbol id="icon-chart" viewBox="0 0 24 24"><path d="M3 3v18h18M7 16l4-4 4 4 4-4"/><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M7 16l4-4 4 4 4-4"/></symbol>
+  <symbol id="icon-sword" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M14.5 17.5L3 6V3h3l11.5 11.5M17 3l4 4-3.5 3.5-4-4M3 21l4-4"/></symbol>
+  <symbol id="icon-trophy" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M8 21h8m-4-4v4M12 17c-4.418 0-8-3.582-8-8V4h16v5c0 4.418-3.582 8-8 8zM4 7H2v2a4 4 0 0 0 4 4M20 7h2v2a4 4 0 0 1-4 4"/></symbol>
+  <symbol id="icon-users" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></symbol>
+  <symbol id="icon-search" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z"/></symbol>
+  <symbol id="icon-logout" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></symbol>
+  <symbol id="icon-steam" viewBox="0 0 24 24"><path d="M11.979 0C5.678 0 .511 4.86.022 11.037l6.432 2.658c.545-.371 1.203-.59 1.912-.59.063 0 .125.004.187.008l2.861-4.142V8.91c0-2.495 2.028-4.524 4.524-4.524 2.494 0 4.524 2.031 4.524 4.527s-2.03 4.525-4.524 4.525h-.105l-4.076 2.911c0 .052.004.105.004.159 0 1.875-1.515 3.396-3.39 3.396-1.635 0-3.016-1.173-3.331-2.727L.436 15.27C1.862 20.307 6.486 24 11.979 24c6.627 0 11.999-5.373 11.999-12S18.606 0 11.979 0z"/></symbol>
+  <symbol id="icon-back" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M19 12H5M12 19l-7-7 7-7"/></symbol>
+  <symbol id="icon-stats" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M18 20V10M12 20V4M6 20v-6"/></symbol>
+</svg>
+
+<header>
+  <div class="logo">Dead<span>lock</span></div>
+  <nav id="mainNav" style="display:none">
+    <button class="nav-btn active" onclick="showTab('dashboard',this)">
+      <svg><use href="#icon-stats"/></svg> Dashboard
+    </button>
+    <button class="nav-btn" onclick="showTab('heroes',this)">
+      <svg><use href="#icon-sword"/></svg> Heroes
+    </button>
+    <button class="nav-btn" onclick="showTab('leaderboard',this)">
+      <svg><use href="#icon-trophy"/></svg> Leaderboard
+    </button>
+  </nav>
+  <div class="header-right">
+    <div class="header-search" id="headerSearch" style="display:none">
+      <input type="text" id="headerSearchInput" placeholder="Spieler suchen..." onkeydown="if(event.key==='Enter')searchAndView()"/>
+      <button onclick="searchAndView()">
+        <svg><use href="#icon-search"/></svg>
+      </button>
+    </div>
+    <div id="userChip" style="display:none" class="user-chip">
+      <div id="userAvatarEl"></div>
+      <span class="user-name" id="userNameEl"></span>
+    </div>
+    <button class="btn" id="logoutBtn" style="display:none" onclick="logout()">
+      <svg><use href="#icon-logout"/></svg> Logout
+    </button>
+    <a class="btn btn-accent" id="loginHeaderBtn" href="#" onclick="goToLogin();return false">
+      <svg style="width:13px;height:13px;fill:currentColor"><use href="#icon-steam"/></svg> Anmelden
+    </a>
+  </div>
+</header>
+
+<!-- LOGIN PAGE -->
+<div class="page active" id="page-login">
+  <div style="min-height:calc(100vh - 56px);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:2rem;text-align:center">
+    <div class="login-title">Dead<span>lock</span><br>Tracker</div>
+    <div class="login-sub">// Dein persönlicher Stats Tracker</div>
+
+    <a id="steamLoginBtn" href="#" class="steam-btn">
+      <svg><use href="#icon-steam"/></svg>
+      Mit Steam anmelden
+    </a>
+
+    <div class="login-features">
+      <div class="login-feature">
+        <svg><use href="#icon-stats"/></svg>
+        <div class="login-feature-text">Stats & KPIs</div>
+      </div>
+      <div class="login-feature">
+        <svg><use href="#icon-sword"/></svg>
+        <div class="login-feature-text">Match Historie</div>
+      </div>
+      <div class="login-feature">
+        <svg><use href="#icon-trophy"/></svg>
+        <div class="login-feature-text">Hero Stats</div>
+      </div>
+      <div class="login-feature">
+        <svg><use href="#icon-users"/></svg>
+        <div class="login-feature-text">Buddy Tracker</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- DASHBOARD -->
+<div class="page" id="page-dashboard">
+  <div class="dashboard" id="dashboardContent">
+    <div class="loading"><div class="loading-bar"></div><div class="loading-text">Dashboard laden...</div></div>
+  </div>
+</div>
+
+<!-- HEROES -->
+<div class="page" id="page-heroes">
+  <div class="dashboard">
+    <div style="display:flex;align-items:center;gap:1rem;margin-bottom:1rem">
+      <div class="panel-title">Hero Übersicht</div>
+      <input id="heroSearch" type="text" placeholder="Hero suchen..." oninput="filterHeroes()"
+        style="background:var(--surface2);border:1px solid var(--border);color:var(--white);font-family:'Exo 2',sans-serif;font-size:0.8rem;padding:0.35rem 0.75rem;outline:none;margin-left:auto;width:200px"/>
+    </div>
+    <div id="heroesContent">
+      <div class="loading"><div class="loading-bar"></div><div class="loading-text">Laden...</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- LEADERBOARD -->
+<div class="page" id="page-leaderboard">
+  <div class="lb-wrap">
+    <div class="panel-title" style="margin-bottom:1rem">Leaderboard</div>
+    <div class="region-tabs">
+      <button class="region-tab active" onclick="loadLb('Europe',this)">Europa</button>
+      <button class="region-tab" onclick="loadLb('NAmerica',this)">Nordamerika</button>
+      <button class="region-tab" onclick="loadLb('SAmerica',this)">Südamerika</button>
+      <button class="region-tab" onclick="loadLb('Asia',this)">Asien</button>
+      <button class="region-tab" onclick="loadLb('Oceania',this)">Ozeanien</button>
+    </div>
+    <div id="lbContent">
+      <div class="loading"><div class="loading-bar"></div><div class="loading-text">Laden...</div></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = "https://deadlock-api-server-production.up.railway.app";
+let currentUser = null;
+let heroesCache = null;
+let heroesLoaded = false;
+let lbLoaded = false;
+let winLossChart = null;
+
+window.addEventListener('DOMContentLoaded', () => {
+  const params = new URLSearchParams(window.location.search);
+  const token = params.get('token');
+  if (token) {
+    try {
+      const data = JSON.parse(atob(token));
+      loginUser(data);
+      window.history.replaceState({}, '', window.location.pathname);
+    } catch(e) { showLoginPage(); }
+  } else {
+    const saved = localStorage.getItem('deadlock_user');
+    if (saved) {
+      try { loginUser(JSON.parse(saved)); }
+      catch(e) { showLoginPage(); }
+    } else {
+      showLoginPage();
+    }
+  }
+  document.getElementById('steamLoginBtn').href = `${API}/auth/steam`;
+});
+
+function loginUser(data) {
+  currentUser = data;
+  localStorage.setItem('deadlock_user', JSON.stringify(data));
+  document.getElementById('loginHeaderBtn').style.display = 'none';
+  document.getElementById('userChip').style.display = 'flex';
+  document.getElementById('logoutBtn').style.display = 'block';
+  document.getElementById('mainNav').style.display = 'flex';
+  document.getElementById('headerSearch').style.display = 'flex';
+  document.getElementById('userNameEl').textContent = data.playerName;
+  const avatarEl = document.getElementById('userAvatarEl');
+  if (data.playerAvatar) {
+    avatarEl.innerHTML = `<img class="user-avatar" src="${data.playerAvatar}" alt=""/>`;
+  } else {
+    avatarEl.innerHTML = `<div class="user-avatar-ph">${data.playerName.charAt(0).toUpperCase()}</div>`;
+  }
+  showTab('dashboard');
+  loadDashboard();
+}
+
+function logout() {
+  currentUser = null;
+  localStorage.removeItem('deadlock_user');
+  document.getElementById('loginHeaderBtn').style.display = 'inline-flex';
+  document.getElementById('userChip').style.display = 'none';
+  document.getElementById('logoutBtn').style.display = 'none';
+  document.getElementById('mainNav').style.display = 'none';
+  document.getElementById('headerSearch').style.display = 'none';
+  showLoginPage();
+}
+
+function showLoginPage() {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById('page-login').classList.add('active');
+}
+
+function goToLogin() { showLoginPage(); }
+
+function showTab(name, btn) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById(`page-${name}`).classList.add('active');
+  if (btn) btn.classList.add('active');
+  else document.querySelectorAll('.nav-btn').forEach(b => {
+    if (b.textContent.trim().toLowerCase().includes(name.substring(0,4))) b.classList.add('active');
+  });
+  if (name === 'heroes' && !heroesLoaded) { loadHeroes(); heroesLoaded = true; }
+  if (name === 'leaderboard' && !lbLoaded) { loadLb('Europe'); lbLoaded = true; }
+}
+
+async function loadDashboard() {
+  if (!currentUser) return;
+  const el = document.getElementById('dashboardContent');
+  el.innerHTML = '<div class="loading"><div class="loading-bar"></div><div class="loading-text">Dashboard laden...</div></div>';
+  try {
+    const [summaryRes, matchesRes, friendsRes] = await Promise.all([
+      fetch(`${API}/api/players/${currentUser.steamId}`),
+      fetch(`${API}/api/players/${currentUser.steamId}/matches?limit=20`),
+      fetch(`${API}/api/friends/${currentUser.steamId}`)
+    ]);
+    const summary = await summaryRes.json();
+    const matchData = await matchesRes.json();
+    const friendsData = await friendsRes.json();
+    if (!heroesCache) {
+      const hr = await fetch(`${API}/api/heroes`);
+      const hj = await hr.json();
+      heroesCache = hj.data || [];
+    }
+    renderDashboard(summary, matchData, friendsData);
+  } catch(e) {
+    el.innerHTML = `<div class="error-msg">Fehler: ${e.message}</div>`;
+  }
+}
+
+function getHeroById(id) {
+  if (!heroesCache) return null;
+  return heroesCache.find(h => h.id === id || String(h.id) === String(id)) || null;
+}
+
+function renderDashboard(summary, matchData, friendsData) {
+  const s = summary.ok ? summary.data : null;
+  const matches = matchData.ok ? (matchData.data?.matches || matchData.data || []) : [];
+  const friends = friendsData.ok ? (friendsData.data || []) : [];
+
+  const wins = s?.wins ?? 0;
+  const losses = s?.losses ?? 0;
+  const total = wins + losses;
+  const wr = total > 0 ? ((wins/total)*100).toFixed(1) : '–';
+  const kd = s?.kd_ratio ? s.kd_ratio.toFixed(2) : '–';
+  const avgK = s?.average_kills ? s.average_kills.toFixed(1) : '–';
+  const avgD = s?.average_deaths ? s.average_deaths.toFixed(1) : '–';
+  const avgA = s?.average_assists ? s.average_assists.toFixed(1) : '–';
+  const rank = s?.ranked_badge_level ?? s?.rank_score ?? '–';
+  const wrF = parseFloat(wr);
+  const wrColor = wrF >= 55 ? 'g' : wrF < 45 ? 'r' : 'a2';
+
+  const heroStats = {};
+  matches.forEach(m => {
+    const hid = m.hero_id; if (!hid) return;
+    if (!heroStats[hid]) heroStats[hid] = { id: hid, games: 0, wins: 0, kills: 0, deaths: 0, assists: 0 };
+    heroStats[hid].games++;
+    if (m.won ?? m.match_outcome === 1) heroStats[hid].wins++;
+    heroStats[hid].kills += m.kills || 0;
+    heroStats[hid].deaths += m.deaths || 0;
+  });
+  const topHeroes = Object.values(heroStats).sort((a,b) => b.games - a.games).slice(0,5);
+
+  const el = document.getElementById('dashboardContent');
+  el.innerHTML = '';
+
+  // Profile banner
+  const banner = document.createElement('div');
+  banner.className = 'profile-banner fade-in';
+  banner.innerHTML = `
+    ${currentUser.playerAvatar
+      ? `<img class="pb-avatar" src="${currentUser.playerAvatar}" alt=""/>`
+      : `<div class="pb-avatar-ph">${currentUser.playerName.charAt(0).toUpperCase()}</div>`}
+    <div class="pb-info">
+      <div class="pb-name">${currentUser.playerName}</div>
+      <div class="pb-meta">Steam ID: ${currentUser.steamId} &nbsp;·&nbsp; ${total} Matches gespielt</div>
+    </div>
+    <div class="pb-rank">
+      <div class="pb-rank-val">${rank}</div>
+      <div class="pb-rank-label">Rank Score</div>
+    </div>
+  `;
+  el.appendChild(banner);
+
+  // Stats
+  const statsRow = document.createElement('div');
+  statsRow.className = 'stats-row fade-in';
+  statsRow.innerHTML = `
+    <div class="stat-card"><div class="stat-val ${wrColor}">${wr}%</div><div class="stat-lbl">Winrate</div></div>
+    <div class="stat-card"><div class="stat-val a">${wins}</div><div class="stat-lbl">Siege</div></div>
+    <div class="stat-card"><div class="stat-val r">${losses}</div><div class="stat-lbl">Niederlagen</div></div>
+    <div class="stat-card"><div class="stat-val a2">${kd}</div><div class="stat-lbl">K/D</div></div>
+    <div class="stat-card"><div class="stat-val g">${avgK}</div><div class="stat-lbl">Ø Kills</div></div>
+    <div class="stat-card"><div class="stat-val r">${avgD}</div><div class="stat-lbl">Ø Deaths</div></div>
+    <div class="stat-card"><div class="stat-val">${avgA}</div><div class="stat-lbl">Ø Assists</div></div>
+    <div class="stat-card"><div class="stat-val">${total}</div><div class="stat-lbl">Matches</div></div>
+  `;
+  el.appendChild(statsRow);
+
+  // Two col
+  const twoCol = document.createElement('div');
+  twoCol.className = 'two-col';
+
+  const heroPanel = document.createElement('div');
+  heroPanel.className = 'panel fade-in';
+  heroPanel.innerHTML = `<div class="panel-head"><div class="panel-title">Most Played Heroes</div></div><div id="heroPlayedList"></div>`;
+  twoCol.appendChild(heroPanel);
+
+  const chartPanel = document.createElement('div');
+  chartPanel.className = 'panel fade-in';
+  chartPanel.innerHTML = `<div class="panel-head"><div class="panel-title">Win / Loss (letzte 20)</div></div><div class="chart-wrap"><canvas id="wlChart"></canvas></div>`;
+  twoCol.appendChild(chartPanel);
+  el.appendChild(twoCol);
+
+  // Hero list
+  const heroList = document.getElementById('heroPlayedList');
+  if (!topHeroes.length) {
+    heroList.innerHTML = '<div class="empty-msg">Keine Daten verfügbar.</div>';
+  } else {
+    topHeroes.forEach((h, i) => {
+      const hero = getHeroById(h.id);
+      const heroName = hero?.name || `Hero #${h.id}`;
+      const heroImg = hero?.images?.icon_image_small_webp || hero?.images?.icon_image_small || '';
+      const heroWr = h.games > 0 ? ((h.wins/h.games)*100).toFixed(0) : 0;
+      const heroKd = h.deaths > 0 ? (h.kills/h.deaths).toFixed(2) : h.kills.toFixed(2);
+      const wrCol = heroWr >= 55 ? 'var(--green)' : heroWr < 45 ? 'var(--red)' : 'var(--accent2)';
+      const row = document.createElement('div');
+      row.className = 'hero-played-row';
+      row.innerHTML = `
+        <div class="hp-rank ${i<3?'top':''}">${i+1}</div>
+        ${heroImg ? `<img class="hp-img" src="${heroImg}" alt=""/>` : '<div class="hp-img" style="background:var(--surface2)"></div>'}
+        <div><div class="hp-name">${heroName}</div><div class="hp-games">${h.games} Matches</div></div>
+        <div class="hp-wr" style="color:${wrCol}">${heroWr}%</div>
+        <div class="hp-kd">${heroKd} K/D</div>
+      `;
+      heroList.appendChild(row);
+    });
+  }
+
+  // Chart
+  setTimeout(() => {
+    const ctx = document.getElementById('wlChart')?.getContext('2d');
+    if (!ctx || !matches.length) return;
+    if (winLossChart) { winLossChart.destroy(); winLossChart = null; }
+    const wlData = matches.slice(0,20).map(m => (m.won ?? m.match_outcome===1) ? 1 : 0);
+    const vals = [...wlData].reverse();
+    let sum = 0;
+    const cumulative = vals.map(v => { sum += v===1?1:-1; return sum; });
+    winLossChart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: vals.map((_,i) => `#${i+1}`),
+        datasets: [{
+          data: cumulative,
+          borderColor: '#3ecfcf',
+          backgroundColor: 'rgba(62,207,207,0.07)',
+          borderWidth: 2,
+          pointRadius: 3,
+          pointBackgroundColor: cumulative.map(v => v>=0?'#40d080':'#e05060'),
+          fill: true, tension: 0.3
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { ticks: { color: '#3a5060', font: { size: 9 } }, grid: { color: '#1c2733' } },
+          y: { ticks: { color: '#3a5060', font: { size: 9 } }, grid: { color: '#1c2733' } }
+        }
+      }
+    });
+  }, 100);
+
+  // Second row: buddies + quick stats
+  const twoCol2 = document.createElement('div');
+  twoCol2.className = 'two-col';
+
+  const buddyPanel = document.createElement('div');
+  buddyPanel.className = 'panel fade-in';
+  buddyPanel.innerHTML = `<div class="panel-head"><div class="panel-title">Buddy Tracker</div></div><div id="buddyList"></div>`;
+  twoCol2.appendChild(buddyPanel);
+
+  const streak = (() => { let s=0; for(const m of matches){ if(m.won??m.match_outcome===1) s++; else break; } return s; })();
+  const avgDur = matches.length && matches[0].match_duration_s
+    ? Math.round(matches.reduce((a,m)=>a+(m.match_duration_s||0),0)/matches.length) : null;
+  const avgDurStr = avgDur ? `${Math.floor(avgDur/60)}:${String(avgDur%60).padStart(2,'0')}` : '–';
+  const totalKills = matches.reduce((a,m)=>a+(m.kills||0),0);
+  const totalDeaths = matches.reduce((a,m)=>a+(m.deaths||0),0);
+
+  const qsPanel = document.createElement('div');
+  qsPanel.className = 'panel fade-in';
+  qsPanel.innerHTML = `
+    <div class="panel-head"><div class="panel-title">Quick Stats</div></div>
+    <div class="stats-row" style="grid-template-columns:1fr 1fr;background:var(--border);margin:0">
+      <div class="stat-card"><div class="stat-val a">${streak}</div><div class="stat-lbl">Win Streak</div></div>
+      <div class="stat-card"><div class="stat-val">${avgDurStr}</div><div class="stat-lbl">Ø Matchdauer</div></div>
+      <div class="stat-card"><div class="stat-val g">${totalKills}</div><div class="stat-lbl">Kills (20 Games)</div></div>
+      <div class="stat-card"><div class="stat-val r">${totalDeaths}</div><div class="stat-lbl">Deaths (20 Games)</div></div>
+    </div>
+  `;
+  twoCol2.appendChild(qsPanel);
+  el.appendChild(twoCol2);
+
+  // Buddies
+  const buddyList = document.getElementById('buddyList');
+  if (!friends.length) {
+    buddyList.innerHTML = '<div class="empty-msg">Freundesliste ist privat oder leer.</div>';
+  } else {
+    friends.slice(0,8).forEach(f => {
+      const online = f.personastate > 0;
+      const row = document.createElement('div');
+      row.className = 'buddy-row';
+      row.innerHTML = `
+        ${f.avatarfull
+          ? `<img class="buddy-avatar" src="${f.avatarfull}" alt=""/>`
+          : `<div class="buddy-avatar-ph">${(f.personaname||'?').charAt(0).toUpperCase()}</div>`}
+        <div class="buddy-info">
+          <div class="buddy-name">${f.personaname||'Unbekannt'}</div>
+          <div class="buddy-state">${online?'Online':'Offline'}</div>
+        </div>
+        <div class="buddy-status ${online?'online':'offline'}"></div>
+        <button class="buddy-track-btn" onclick="viewBuddy('${f.steamid}','${(f.personaname||'').replace(/'/g,"\\'")}')">Stats</button>
+      `;
+      buddyList.appendChild(row);
+    });
+  }
+
+  // Match list
+  el.appendChild(Object.assign(document.createElement('div'), {
+    innerHTML: `<div class="panel-title" style="margin-bottom:0.75rem;margin-top:0.5rem">Match Historie</div>`
+  }));
+
+  const matchListEl = document.createElement('div');
+  matchListEl.className = 'match-list fade-in';
+  if (!matches.length) {
+    matchListEl.innerHTML = '<div class="empty-msg">Keine Matches gefunden.</div>';
+  } else {
+    matchListEl.innerHTML = `
+      <div class="match-head">
+        <span>Ergebnis</span><span>Hero</span>
+        <span style="text-align:right">K / D / A</span>
+        <span style="text-align:right">Net Worth</span>
+        <span style="text-align:right">Schaden</span>
+        <span style="text-align:right">Dauer</span>
+      </div>
+    `;
+    matches.slice(0,20).forEach(m => {
+      const won = m.won ?? m.match_outcome===1;
+      const hero = getHeroById(m.hero_id);
+      const heroName = hero?.name || (m.hero_id?`Hero #${m.hero_id}`:'–');
+      const heroImg = hero?.images?.icon_image_small_webp || hero?.images?.icon_image_small || '';
+      const k=m.kills??'–', d=m.deaths??'–', a=m.assists??'–';
+      const nw = m.net_worth ? `${(m.net_worth/1000).toFixed(1)}k` : '–';
+      const dmg = m.player_damage ? `${(m.player_damage/1000).toFixed(1)}k` : '–';
+      const dur = m.match_duration_s
+        ? `${Math.floor(m.match_duration_s/60)}:${String(m.match_duration_s%60).padStart(2,'0')}` : '–';
+      const row = document.createElement('div');
+      row.className = 'match-row';
+      row.innerHTML = `
+        <div class="mr-result ${won?'win':'loss'}">${won?'SIEG':'NIEDERLAGE'}</div>
+        <div class="mr-hero">
+          ${heroImg?`<img class="mr-hero-img" src="${heroImg}" alt=""/>`:''}
+          <span class="mr-hero-name">${heroName}</span>
+        </div>
+        <div class="mr-kda" style="text-align:right">${k} / ${d} / ${a}</div>
+        <div class="mr-stat" style="text-align:right">${nw}</div>
+        <div class="mr-stat" style="text-align:right">${dmg}</div>
+        <div class="mr-dur">${dur}</div>
+      `;
+      matchListEl.appendChild(row);
+    });
+  }
+  el.appendChild(matchListEl);
+}
+
+async function viewBuddy(steamId, name) {
+  showTab('dashboard');
+  const el = document.getElementById('dashboardContent');
+  el.innerHTML = '<div class="loading"><div class="loading-bar"></div><div class="loading-text">Laden...</div></div>';
+  try {
+    const [summaryRes, matchesRes] = await Promise.all([
+      fetch(`${API}/api/players/${steamId}`),
+      fetch(`${API}/api/players/${steamId}/matches?limit=20`)
+    ]);
+    const summary = await summaryRes.json();
+    const matchData = await matchesRes.json();
+    const savedUser = currentUser;
+    currentUser = { steamId, playerName: name, playerAvatar: '' };
+    renderDashboard(summary, matchData, { ok: true, data: [] });
+    currentUser = savedUser;
+    const backDiv = document.createElement('div');
+    backDiv.style.cssText = 'display:flex;align-items:center;gap:1rem;margin-bottom:1.5rem';
+    backDiv.innerHTML = `<button class="btn" onclick="loadDashboard()"><svg style="width:13px;height:13px;fill:none;stroke:currentColor;stroke-width:2"><use href="#icon-back"/></svg> Mein Dashboard</button><div class="panel-title">${name}'s Stats</div>`;
+    document.getElementById('dashboardContent').prepend(backDiv);
+  } catch(e) {
+    el.innerHTML = `<div class="error-msg">${e.message}</div>`;
+  }
+}
+
+async function searchAndView() {
+  const name = document.getElementById('headerSearchInput').value.trim();
+  if (!name) return;
+  try {
+    const r = await fetch(`${API}/api/search/${encodeURIComponent(name)}`);
+    const j = await r.json();
+    if (j.ok) await viewBuddy(j.steam_id, name);
+    else alert(j.error || 'Spieler nicht gefunden.');
+  } catch(e) { alert('Fehler: ' + e.message); }
+}
+
+async function loadHeroes() {
+  try {
+    if (!heroesCache) {
+      const r = await fetch(`${API}/api/heroes`);
+      const j = await r.json();
+      heroesCache = j.data || [];
+    }
+    renderHeroGrid(heroesCache.filter(h => h.player_selectable && !h.disabled));
+  } catch(e) {
+    document.getElementById('heroesContent').innerHTML = `<div class="error-msg">${e.message}</div>`;
+  }
+}
+
+function filterHeroes() {
+  const q = document.getElementById('heroSearch').value.toLowerCase();
+  renderHeroGrid((heroesCache||[]).filter(h => h.player_selectable && !h.disabled && h.name.toLowerCase().includes(q)));
+}
+
+function renderHeroGrid(list) {
+  const el = document.getElementById('heroesContent');
+  if (!list.length) { el.innerHTML = '<div class="empty-msg">Keine Heroes gefunden.</div>'; return; }
+  const sorted = [...list].sort((a,b) => a.name.localeCompare(b.name));
+  el.innerHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:1px;background:var(--border)">
+    ${sorted.map((h,i) => {
+      const img = h.images?.icon_hero_card_webp || h.images?.icon_hero_card || '';
+      return `<div style="background:var(--surface);position:relative;overflow:hidden;aspect-ratio:3/4;animation:fadeIn 0.3s ease ${i*0.02}s both;transition:transform 0.2s;cursor:default"
+        onmouseover="this.style.transform='scale(1.05)';this.style.zIndex=5"
+        onmouseout="this.style.transform='';this.style.zIndex=''">
+        ${img?`<img src="${img}" alt="${h.name}" loading="lazy" style="width:100%;height:100%;object-fit:cover;filter:saturate(0.75) brightness(0.8);transition:filter 0.3s"
+          onmouseover="this.style.filter='saturate(1) brightness(1)'" onmouseout="this.style.filter='saturate(0.75) brightness(0.8)'"/>`:''}
+        <div style="position:absolute;inset:0;background:linear-gradient(to top,rgba(7,9,13,0.95) 0%,transparent 60%)"></div>
+        <div style="position:absolute;bottom:0;left:0;right:0;padding:0.6rem">
+          <div style="font-family:'Rajdhani',sans-serif;font-weight:700;font-size:0.85rem;letter-spacing:0.05em;text-transform:uppercase;color:var(--white)">${h.name}</div>
+          <div style="font-size:0.62rem;color:var(--accent);letter-spacing:0.1em;text-transform:uppercase;margin-top:1px">${h.hero_type||''}</div>
+        </div>
+      </div>`;
+    }).join('')}
+  </div>`;
+}
+
+async function loadLb(region, btn) {
+  if (btn) { document.querySelectorAll('.region-tab').forEach(t=>t.classList.remove('active')); btn.classList.add('active'); }
+  document.getElementById('lbContent').innerHTML = '<div class="loading"><div class="loading-bar"></div><div class="loading-text">Laden...</div></div>';
+  try {
+    const r = await fetch(`${API}/api/leaderboard?region=${region}`);
+    const j = await r.json();
+    const entries = j.data?.entries || j.data || [];
+    if (!entries.length) { document.getElementById('lbContent').innerHTML = '<div class="empty-msg">Keine Daten.</div>'; return; }
+    document.getElementById('lbContent').innerHTML = `
+      <div class="lb-table">
+        <div class="lb-head"><span style="text-align:center">#</span><span>Spieler</span><span style="text-align:right">Score</span><span style="text-align:right">Siege</span><span style="text-align:right">Matches</span></div>
+        <div class="fade-in">
+          ${entries.slice(0,100).map((e,i) => {
+            const rank = e.rank??i+1;
+            const rc = rank===1?'gold':rank===2?'silver':rank===3?'bronze':'';
+            return `<div class="lb-row">
+              <span class="lb-rank ${rc}">${rank}</span>
+              <span class="lb-name">${e.account_name||e.name||e.steam_id||'–'}</span>
+              <span class="lb-score">${e.ranked_badge_level??e.rank_score??'–'}</span>
+              <span class="lb-wins">${e.wins??'–'}</span>
+              <span class="lb-total">${e.matches??'–'}</span>
+            </div>`;
+          }).join('')}
+        </div>
+      </div>`;
+  } catch(e) {
+    document.getElementById('lbContent').innerHTML = `<div class="error-msg">${e.message}</div>`;
+  }
+}
+</script>
+</body>
+</html>
